@@ -14,8 +14,10 @@ namespace gInk
 		public Root Root;
 		IntPtr Canvus;
 		IntPtr canvusDc;
+		IntPtr oldCanvus = IntPtr.Zero;
 		IntPtr OneStrokeCanvus;
 		IntPtr onestrokeDc;
+		IntPtr oldOneStrokeCanvus = IntPtr.Zero;
 		IntPtr BlankCanvus;
 		IntPtr blankcanvusDc;
 		Graphics gCanvus;
@@ -23,11 +25,13 @@ namespace gInk
 		//Bitmap ScreenBitmap;
 		IntPtr hScreenBitmap;
 		IntPtr memscreenDc;
+		IntPtr oldScreenBitmap = IntPtr.Zero;
 
 		Bitmap gpButtonsImage;
 		Bitmap gpPenWidthImage;
 		SolidBrush TransparentBrush;
 		SolidBrush SemiTransparentBrush;
+		Pen SnappingPen;
 
 		byte[] screenbits;
 		byte[] lastscreenbits;
@@ -70,9 +74,9 @@ namespace gInk
 
 			IntPtr screenDc = GetDC(IntPtr.Zero);
 			canvusDc = CreateCompatibleDC(screenDc);
-			SelectObject(canvusDc, Canvus);
+			oldCanvus = SelectObject(canvusDc, Canvus);
 			onestrokeDc = CreateCompatibleDC(screenDc);
-			SelectObject(onestrokeDc, OneStrokeCanvus);
+			oldOneStrokeCanvus = SelectObject(onestrokeDc, OneStrokeCanvus);
 			//blankcanvusDc = CreateCompatibleDC(screenDc);
 			//SelectObject(blankcanvusDc, BlankCanvus);
 			gCanvus = Graphics.FromHdc(canvusDc);
@@ -83,7 +87,7 @@ namespace gInk
 			{
 				hScreenBitmap = InitCanvus.GetHbitmap(Color.FromArgb(0));
 				memscreenDc = CreateCompatibleDC(screenDc);
-				SelectObject(memscreenDc, hScreenBitmap);
+				oldScreenBitmap = SelectObject(memscreenDc, hScreenBitmap);
 				screenbits = new byte[50000000];
 				lastscreenbits = new byte[50000000];
 			}
@@ -97,6 +101,7 @@ namespace gInk
 			gpPenWidthImage = new Bitmap(200, gpheight);
 			TransparentBrush = new SolidBrush(Color.Transparent);
 			SemiTransparentBrush = new SolidBrush(Color.FromArgb(120, 255, 255, 255));
+			SnappingPen = new Pen(Color.FromArgb(200, 80, 80, 80), 3);
 
 
 			ToTopMostThrough();
@@ -130,9 +135,7 @@ namespace gInk
 				gCanvus.FillRectangle(SemiTransparentBrush, new Rectangle(rect.Right, 0, this.Width - rect.Right, this.Height));
 				gCanvus.FillRectangle(SemiTransparentBrush, new Rectangle(rect.Left, 0, rect.Width, rect.Top));
 				gCanvus.FillRectangle(SemiTransparentBrush, new Rectangle(rect.Left, rect.Bottom, rect.Width, this.Height - rect.Bottom));
-				Pen pen = new Pen(Color.FromArgb(200, 80, 80, 80));
-				pen.Width = 3;
-				gCanvus.DrawRectangle(pen, rect);
+				gCanvus.DrawRectangle(SnappingPen, rect);
 			}
 			else
 			{
@@ -143,7 +146,7 @@ namespace gInk
 
 		public void DrawButtons(bool redrawbuttons, bool exiting = false)
 		{
-			if (Root.AlwaysHideToolbar)
+			if (Root.AlwaysHideToolbar || !Root.ShowBottomToolbar)
 				return;
 
 			int top, height, left, width;
@@ -186,6 +189,8 @@ namespace gInk
 		}
 		public void DrawButtons(Graphics g, bool redrawbuttons, bool exiting = false)
 		{
+			if (Root.AlwaysHideToolbar || !Root.ShowBottomToolbar)
+				return;
 			int top, height, left, width;
 			int fullwidth;
 			int gpbl;
@@ -313,36 +318,51 @@ namespace gInk
 				rect.Width = (int)(rect.Width * ScreenScalingFactor);
 				rect.Height = (int)(rect.Height * ScreenScalingFactor);
 
-
-				Bitmap tempbmp = new Bitmap(rect.Width, rect.Height);
-				Graphics g = Graphics.FromImage(tempbmp);
-				g.Clear(Color.Red);
-
-				IntPtr hDest = CreateCompatibleDC(screenDc);
-				IntPtr hBmp = tempbmp.GetHbitmap();
-				SelectObject(hDest, hBmp);
-				bool b = BitBlt(hDest, 0, 0, rect.Width, rect.Height, screenDc, rect.Left, rect.Top, (uint)(CopyPixelOperation.SourceCopy | CopyPixelOperation.CaptureBlt));
-				tempbmp = Bitmap.FromHbitmap(hBmp);
-
-				if (!b)
+				using (Bitmap tempbmp = new Bitmap(rect.Width, rect.Height))
 				{
-					g = Graphics.FromImage(tempbmp);
-					g.Clear(Color.Blue);
-					g.CopyFromScreen(rect.Left, rect.Top, 0, 0, new Size(rect.Width, rect.Height));
+					IntPtr hDest = CreateCompatibleDC(screenDc);
+					IntPtr hBmp = tempbmp.GetHbitmap();
+					IntPtr oldBmp = SelectObject(hDest, hBmp);
+
+					bool b = BitBlt(hDest, 0, 0, rect.Width, rect.Height, screenDc, rect.Left, rect.Top, (uint)(CopyPixelOperation.SourceCopy | CopyPixelOperation.CaptureBlt));
+
+					SelectObject(hDest, oldBmp);
+					DeleteDC(hDest);
+
+					using (Bitmap resultBmp = Bitmap.FromHbitmap(hBmp))
+					{
+						DeleteObject(hBmp);
+
+						if (!b)
+						{
+							using (Graphics g = Graphics.FromImage(resultBmp))
+							{
+								g.CopyFromScreen(rect.Left, rect.Top, 0, 0, new Size(rect.Width, rect.Height));
+							}
+						}
+
+						for (int retry = 0; retry < 5; retry++)
+						{
+							try
+							{
+								Clipboard.SetImage(resultBmp);
+								break;
+							}
+							catch
+							{
+								System.Threading.Thread.Sleep(50);
+							}
+						}
+						DateTime now = DateTime.Now;
+						string nowstr = now.Year.ToString() + "-" + now.Month.ToString("D2") + "-" + now.Day.ToString("D2") + " " + now.Hour.ToString("D2") + "-" + now.Minute.ToString("D2") + "-" + now.Second.ToString("D2");
+						string savefilename = nowstr + ".png";
+						Root.SnapshotFileFullPath = snapbasepath + savefilename;
+
+						resultBmp.Save(Root.SnapshotFileFullPath, System.Drawing.Imaging.ImageFormat.Png);
+					}
 				}
 
-				Clipboard.SetImage(tempbmp);
-				DateTime now = DateTime.Now;
-				string nowstr = now.Year.ToString() + "-" + now.Month.ToString("D2") + "-" + now.Day.ToString("D2") + " " + now.Hour.ToString("D2") + "-" + now.Minute.ToString("D2") + "-" + now.Second.ToString("D2");
-				string savefilename = nowstr + ".png";
-				Root.SnapshotFileFullPath = snapbasepath + savefilename;
-
-				tempbmp.Save(Root.SnapshotFileFullPath, System.Drawing.Imaging.ImageFormat.Png);
-
-				tempbmp.Dispose();
-				DeleteObject(hBmp);
 				ReleaseDC(IntPtr.Zero, screenDc);
-				DeleteDC(hDest);
 
 				Root.UponBalloonSnap = true;
 			}
@@ -446,6 +466,12 @@ namespace gInk
 		DateTime TickStartTime;
 		private void timer1_Tick(object sender, EventArgs e)
 		{
+			if (Root == null || Root.FormCollection == null || Root.FormCollection.IC == null || this.IsDisposed || !this.Visible)
+			{
+				timer1.Enabled = false;
+				return;
+			}
+
 			Tick++;
 
 			/*
@@ -503,7 +529,7 @@ namespace gInk
 				}
 			}
 
-			else if (Root.FormCollection.IC.CollectingInk && Root.EraserMode == false && Root.InkVisible)
+			else if (Root.FormCollection.IC.CollectingInk && Root.EraserMode == false && Root.InkVisible && !Root.PanMode && (GetAsyncKeyState(0x02) & 0x8000) == 0 && (Root.FormRadialMenu == null || !Root.FormRadialMenu.Visible) && (Root.FormCollection == null || !Root.FormCollection.SuppressStrokeFromRadialMenu))
 			{
 				//ClearCanvus();
 				//DrawStrokes();
@@ -580,18 +606,87 @@ namespace gInk
 
 		private void FormDisplay_FormClosed(object sender, FormClosedEventArgs e)
 		{
-			DeleteObject(Canvus);
-			//DeleteObject(BlankCanvus);
-			DeleteDC(canvusDc);
-			DeleteObject(OneStrokeCanvus);
-			DeleteDC(onestrokeDc);
+			timer1.Enabled = false;
+			timer1.Stop();
+
+			if (gCanvus != null)
+			{
+				try { gCanvus.Dispose(); } catch { }
+				gCanvus = null;
+			}
+			if (gOneStrokeCanvus != null)
+			{
+				try { gOneStrokeCanvus.Dispose(); } catch { }
+				gOneStrokeCanvus = null;
+			}
+
+			if (canvusDc != IntPtr.Zero)
+			{
+				if (oldCanvus != IntPtr.Zero)
+					SelectObject(canvusDc, oldCanvus);
+				DeleteDC(canvusDc);
+				canvusDc = IntPtr.Zero;
+			}
+			if (Canvus != IntPtr.Zero)
+			{
+				DeleteObject(Canvus);
+				Canvus = IntPtr.Zero;
+			}
+
+			if (onestrokeDc != IntPtr.Zero)
+			{
+				if (oldOneStrokeCanvus != IntPtr.Zero)
+					SelectObject(onestrokeDc, oldOneStrokeCanvus);
+				DeleteDC(onestrokeDc);
+				onestrokeDc = IntPtr.Zero;
+			}
+			if (OneStrokeCanvus != IntPtr.Zero)
+			{
+				DeleteObject(OneStrokeCanvus);
+				OneStrokeCanvus = IntPtr.Zero;
+			}
+
 			if (Root.AutoScroll)
 			{
-				DeleteObject(hScreenBitmap);
-				DeleteDC(memscreenDc);
+				if (memscreenDc != IntPtr.Zero)
+				{
+					if (oldScreenBitmap != IntPtr.Zero)
+						SelectObject(memscreenDc, oldScreenBitmap);
+					DeleteDC(memscreenDc);
+					memscreenDc = IntPtr.Zero;
+				}
+				if (hScreenBitmap != IntPtr.Zero)
+				{
+					DeleteObject(hScreenBitmap);
+					hScreenBitmap = IntPtr.Zero;
+				}
 			}
-			gpButtonsImage.Dispose();
-			gpPenWidthImage.Dispose();
+
+			if (gpButtonsImage != null)
+			{
+				try { gpButtonsImage.Dispose(); } catch { }
+				gpButtonsImage = null;
+			}
+			if (gpPenWidthImage != null)
+			{
+				try { gpPenWidthImage.Dispose(); } catch { }
+				gpPenWidthImage = null;
+			}
+			if (TransparentBrush != null)
+			{
+				try { TransparentBrush.Dispose(); } catch { }
+				TransparentBrush = null;
+			}
+			if (SemiTransparentBrush != null)
+			{
+				try { SemiTransparentBrush.Dispose(); } catch { }
+				SemiTransparentBrush = null;
+			}
+			if (SnappingPen != null)
+			{
+				try { SnappingPen.Dispose(); } catch { }
+				SnappingPen = null;
+			}
 		}
 
 		[DllImport("user32.dll")]
@@ -645,6 +740,8 @@ namespace gInk
 		static extern int SetWindowLong(IntPtr hWnd, int nIndex, UInt32 dwNewLong);
 		[DllImport("user32.dll")]
 		public extern static bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+		[DllImport("user32.dll")]
+		private static extern short GetAsyncKeyState(int vKey);
 
 		[DllImport("gdi32.dll")]
 		static extern int GetBitmapBits(IntPtr hbmp, int cbBuffer, [Out] byte[] lpvBits);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
 using System.Threading;
@@ -83,13 +83,20 @@ namespace gInk
 
 				ShowErrorDialog("UnhandledException", errorMsg);
 
-				if (!EventLog.SourceExists("UnhandledException"))
+				try
 				{
-					EventLog.CreateEventSource("UnhandledException", "Application");
+					if (!EventLog.SourceExists("UnhandledException"))
+					{
+						EventLog.CreateEventSource("UnhandledException", "Application");
+					}
+					EventLog myLog = new EventLog();
+					myLog.Source = "UnhandledException";
+					myLog.WriteEntry(errorMsg);
 				}
-				EventLog myLog = new EventLog();
-				myLog.Source = "UnhandledException";
-				myLog.WriteEntry(errorMsg);
+				catch
+				{
+					// Standard non-admin users cannot write to EventLog; crash.txt is already written.
+				}
 			}
 			catch (Exception exc)
 			{

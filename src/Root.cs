@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Windows.Forms;
@@ -22,23 +22,103 @@ namespace gInk
 
 		public bool PreFilterMessage(ref Message m)
 		{
+			if (m.Msg == 0x020A) // WM_MOUSEWHEEL
+			{
+				short delta = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);
+				if (Root.FormRadialMenu != null && Root.FormRadialMenu.Visible)
+				{
+					Root.FormRadialMenu.HandleWheelScroll(delta);
+					return true;
+				}
+				else if (Root.FormCollection != null && !Root.PointerMode && Root.Snapping <= 0 && !Root.FingerInAction)
+				{
+					int curP = Root.CurrentPen >= 0 ? Root.CurrentPen : (Root.LastPen >= 0 ? Root.LastPen : 1);
+					float curWidth = Root.PenAttr[curP].Width;
+
+					int step;
+					if (curWidth < 120) step = 20;
+					else if (curWidth < 350) step = 40;
+					else step = 80;
+
+					int change = (delta > 0) ? step : -step;
+					Root.AdjustPenWidth(change);
+					return true;
+				}
+			}
+
+			const int WM_LBUTTONDOWN = 0x0201;
+			const int WM_LBUTTONUP = 0x0202;
+			const int WM_RBUTTONDOWN = 0x0204;
+			const int WM_RBUTTONUP = 0x0205;
+			const int WM_MOUSEMOVE = 0x0200;
+
+			if (m.Msg == WM_LBUTTONDOWN)
+			{
+				if (Root.FormRadialMenu != null && Root.FormRadialMenu.Visible)
+				{
+					Point cur = System.Windows.Forms.Cursor.Position;
+					Point clientPt = Root.FormRadialMenu.PointToClient(cur);
+					Root.FormRadialMenu.UpdateHoverFromPoint(clientPt.X, clientPt.Y);
+					Root.FormRadialMenu.CommitAndClose();
+					return true;
+				}
+			}
+			else if (m.Msg == WM_LBUTTONUP)
+			{
+				if (Root.FormCollection != null && Root.FormCollection.SuppressStrokeFromRadialMenu)
+				{
+					return true;
+				}
+			}
+
+			if (m.Msg == WM_RBUTTONDOWN)
+			{
+				if (Root.FormCollection != null && !Root.PointerMode && Root.Snapping <= 0)
+				{
+					if (Root.FormRadialMenu == null || !Root.FormRadialMenu.Visible)
+					{
+						Root.OpenRadialMenu(System.Windows.Forms.Cursor.Position);
+						return true;
+					}
+					else
+					{
+						return true;
+					}
+				}
+			}
+			else if (m.Msg == WM_RBUTTONUP)
+			{
+				if (Root.FormRadialMenu != null && Root.FormRadialMenu.Visible)
+				{
+					Root.FormRadialMenu.CommitAndClose();
+					return true;
+				}
+				else if (Root.FormCollection != null && !Root.PointerMode && Root.Snapping <= 0)
+				{
+					return true;
+				}
+			}
+			else if (m.Msg == WM_MOUSEMOVE)
+			{
+				if (Root.FormRadialMenu != null && Root.FormRadialMenu.Visible)
+				{
+					Point cur = System.Windows.Forms.Cursor.Position;
+					Point clientPt = Root.FormRadialMenu.PointToClient(cur);
+					Root.FormRadialMenu.UpdateHoverFromPoint(clientPt.X, clientPt.Y);
+				}
+			}
+
 			if (m.Msg == 0x0312)
 			{
-				//Keys key = (Keys)(((int)m.LParam >> 16) & 0xFFFF);                  // The key of the hotkey that was pressed.
-				//int modifier = (int)m.LParam & 0xFFFF;       // The modifier of the hotkey that was pressed.
-				//int id = m.WParam.ToInt32();                                        // The id of the hotkey that was pressed.
-
-				if (Root.FormCollection == null && Root.FormDisplay == null)
-					Root.StartInk();
-				else if (Root.PointerMode)
+				int id = m.WParam.ToInt32();
+				if (id == 0)
 				{
-					//Root.UnPointer();
-					Root.SelectPen(Root.LastPen);
-				}
-				else
-				{
-					//Root.Pointer();
-					Root.SelectPen(-2);
+					if (Root.FormCollection == null && Root.FormDisplay == null)
+						Root.StartInk();
+					else if (Root.PointerMode)
+						Root.SelectPen(Root.LastPen);
+					else
+						Root.SelectPen(-2);
 				}
 			}
 			return false;
@@ -72,10 +152,12 @@ namespace gInk
 		// advanced options
 		public string CloseOnSnap = "blankonly";
 		public bool AlwaysHideToolbar = false;
+		public bool ShowBottomToolbar = false;
 		public float ToolbarHeight = 0.06f;
 
 		// hotkey options
 		public Hotkey Hotkey_Global = new Hotkey();
+		public Hotkey Hotkey_Radial = new Hotkey();
 		public Hotkey[] Hotkey_Pens = new Hotkey[10];
 		public Hotkey Hotkey_Eraser = new Hotkey();
 		public Hotkey Hotkey_InkVisible = new Hotkey();
@@ -114,6 +196,7 @@ namespace gInk
 		public FormDisplay FormDisplay;
 		public FormButtonHitter FormButtonHitter;
 		public FormOptions FormOptions;
+		public FormRadialMenu FormRadialMenu;
 
 		public int CurrentPen = 1;  // defaut pen
 		public int LastPen = 1;
@@ -182,6 +265,53 @@ namespace gInk
 			}
 		}
 
+		public void ToggleRadialMenu(Point? pt = null)
+		{
+			if (FormDisplay == null && FormCollection == null)
+			{
+				ReadOptions("pens.ini");
+				ReadOptions("config.ini");
+				ReadOptions("hotkeys.ini");
+				StartInk();
+				OpenRadialMenu(pt);
+			}
+			else
+			{
+				if (FormRadialMenu != null && FormRadialMenu.Visible)
+				{
+					CloseRadialMenu();
+				}
+				else
+				{
+					OpenRadialMenu(pt);
+				}
+			}
+		}
+
+		public void OpenRadialMenu(Point? pt = null)
+		{
+			if (FormDisplay == null && FormCollection == null)
+			{
+				StartInk();
+			}
+
+			if (FormRadialMenu == null || FormRadialMenu.IsDisposed)
+			{
+				FormRadialMenu = new FormRadialMenu(this);
+			}
+
+			Point summonPt = pt ?? System.Windows.Forms.Cursor.Position;
+			FormRadialMenu.OpenAtCursor(summonPt);
+		}
+
+		public void CloseRadialMenu()
+		{
+			if (FormRadialMenu != null && !FormRadialMenu.IsDisposed)
+			{
+				FormRadialMenu.CloseMenu();
+			}
+		}
+
 		public void StartInk()
 		{
 			if (FormDisplay != null || FormCollection != null)
@@ -206,7 +336,8 @@ namespace gInk
 			FormCollection.ButtonsEntering = 1;
 			FormDisplay.Show();
 			FormCollection.Show();
-			FormDisplay.DrawButtons(true);
+			if (ShowBottomToolbar && !AlwaysHideToolbar)
+				FormDisplay.DrawButtons(true);
 
 			if (UndoStrokes == null)
 			{
@@ -220,14 +351,50 @@ namespace gInk
 		}
 		public void StopInk()
 		{
-			FormCollection.Close();
-			FormDisplay.Close();
-			FormButtonHitter.Close();
-			//FormCollection.Dispose();
-			//FormDisplay.Dispose();
-			GC.Collect();
-			FormCollection = null;
-			FormDisplay = null;
+			CloseRadialMenu();
+			if (FormDisplay != null)
+			{
+				try
+				{
+					FormDisplay.Close();
+					FormDisplay.Dispose();
+				}
+				catch { }
+				FormDisplay = null;
+			}
+			if (FormCollection != null)
+			{
+				try
+				{
+					FormCollection.Close();
+					FormCollection.Dispose();
+				}
+				catch { }
+				FormCollection = null;
+			}
+			if (FormButtonHitter != null)
+			{
+				try
+				{
+					FormButtonHitter.Close();
+					FormButtonHitter.Dispose();
+				}
+				catch { }
+				FormButtonHitter = null;
+			}
+
+			if (UndoStrokes != null)
+			{
+				for (int i = 0; i < UndoStrokes.Length; i++)
+				{
+					if (UndoStrokes[i] != null)
+					{
+						try { UndoStrokes[i].Dispose(); } catch { }
+						UndoStrokes[i] = null;
+					}
+				}
+				UndoStrokes = null;
+			}
 
 			if (UponBalloonSnap)
 			{
@@ -346,7 +513,8 @@ namespace gInk
 
 			PointerMode = true;
 			FormCollection.ToThrough();
-			FormButtonHitter.Show();
+			if (ShowBottomToolbar && !AlwaysHideToolbar)
+				FormButtonHitter.Show();
 		}
 
 		public void UnPointer()
@@ -365,6 +533,22 @@ namespace gInk
 		public void SelectPen(int pen)
 		{
 			FormCollection.SelectPen(pen);
+		}
+
+		public void TogglePenOrHighlighter(int pen)
+		{
+			if (FormCollection != null)
+			{
+				FormCollection.TogglePenOrHighlighter(pen);
+			}
+		}
+
+		public void AdjustPenWidth(int delta)
+		{
+			if (FormCollection != null)
+			{
+				FormCollection.AdjustPenWidth(delta);
+			}
 		}
 
 		public void SetDefaultPens()
@@ -434,6 +618,13 @@ namespace gInk
 			Hotkey_Global.Win = false;
 			Hotkey_Global.Key = 'G';
 
+			Hotkey_Radial.Control = false;
+			Hotkey_Radial.Alt = true;
+			Hotkey_Radial.Shift = false;
+			Hotkey_Radial.Win = false;
+			Hotkey_Radial.Key = ' ';
+
+			ShowBottomToolbar = false;
 			AutoScroll = false;
 			WhiteTrayIcon = false;
 			SnapshotBasePath = "%USERPROFILE%/Pictures/gInk/";
@@ -469,33 +660,28 @@ namespace gInk
 				return;
 
 
-			FileStream fini = new FileStream(file, FileMode.Open);
-			StreamReader srini = new StreamReader(fini);
-			string sLine = "";
-			string sName = "", sPara = "";
-			while (sLine != null)
+			using (FileStream fini = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+			using (StreamReader srini = new StreamReader(fini))
 			{
-				sLine = srini.ReadLine();
-				if
-				(
-					sLine != null &&
-					sLine != "" &&
-					sLine.Substring(0, 1) != "-" &&
-					sLine.Substring(0, 1) != "%" &&
-					sLine.Substring(0, 1) != "'" &&
-					sLine.Substring(0, 1) != "/" &&
-					sLine.Substring(0, 1) != "!" &&
-					sLine.Substring(0, 1) != "[" &&
-					sLine.Substring(0, 1) != "#" &&
-					sLine.Contains("=") &&
-					!sLine.Substring(sLine.IndexOf("=") + 1).Contains("=")
-				)
+				string sLine = "";
+				string sName = "", sPara = "";
+				while ((sLine = srini.ReadLine()) != null)
 				{
-					sName = sLine.Substring(0, sLine.IndexOf("="));
-					sName = sName.Trim();
-					sName = sName.ToUpper();
-					sPara = sLine.Substring(sLine.IndexOf("=") + 1);
-					sPara = sPara.Trim();
+					if (sLine.Length > 0 &&
+						sLine[0] != '-' &&
+						sLine[0] != '%' &&
+						sLine[0] != '\'' &&
+						sLine[0] != '/' &&
+						sLine[0] != '!' &&
+						sLine[0] != '[' &&
+						sLine[0] != '#' &&
+						sLine.Contains("="))
+					{
+						int eqIdx = sLine.IndexOf("=");
+						if (!sLine.Substring(eqIdx + 1).Contains("="))
+						{
+							sName = sLine.Substring(0, eqIdx).Trim().ToUpper();
+							sPara = sLine.Substring(eqIdx + 1).Trim();
 
 					if (sName.StartsWith("PEN"))
 					{
@@ -552,6 +738,9 @@ namespace gInk
 							break;
 						case "HOTKEY_GLOBAL":
 							Hotkey_Global.Parse(sPara);
+							break;
+						case "HOTKEY_RADIAL":
+							Hotkey_Radial.Parse(sPara);
 							break;
 						case "HOTKEY_ERASER":
 							Hotkey_Eraser.Parse(sPara);
@@ -619,6 +808,12 @@ namespace gInk
 							if (sPara.ToUpper() == "TRUE" || sPara == "1" || sPara.ToUpper() == "ON")
 								AlwaysHideToolbar = true;
 							break;
+						case "SHOW_BOTTOM_TOOLBAR":
+							if (sPara.ToUpper() == "TRUE" || sPara == "1" || sPara.ToUpper() == "ON")
+								ShowBottomToolbar = true;
+							else
+								ShowBottomToolbar = false;
+							break;
 						case "UNDO_ICON":
 							if (sPara.ToUpper() == "FALSE" || sPara == "0" || sPara.ToUpper() == "OFF")
 								UndoEnabled = false;
@@ -661,11 +856,12 @@ namespace gInk
 							else if (sPara == "1")
 								CanvasCursor = 1;
 							break;
+						}
 					}
 				}
 			}
-			fini.Close();
 		}
+	}
 
 		public void SaveOptions(string file)
 		{
@@ -674,35 +870,38 @@ namespace gInk
 			if (!File.Exists(file))
 				return;
 
-			FileStream fini = new FileStream(file, FileMode.Open);
-			StreamReader srini = new StreamReader(fini);
 			string sLine = "";
 			string sNameO = "";
 			string sName = "", sPara = "";
 
 			List<string> writelines = new List<string>();
 
-			while (sLine != null)
+			try
 			{
-				sPara = "";
-				sLine = srini.ReadLine();
-				if
-				(
-					sLine != null &&
-					sLine != "" &&
-					sLine.Substring(0, 1) != "-" &&
-					sLine.Substring(0, 1) != "%" &&
-					sLine.Substring(0, 1) != "'" &&
-					sLine.Substring(0, 1) != "/" &&
-					sLine.Substring(0, 1) != "!" &&
-					sLine.Substring(0, 1) != "[" &&
-					sLine.Substring(0, 1) != "#" &&
-					sLine.Contains("=") &&
-					!sLine.Substring(sLine.IndexOf("=") + 1).Contains("=")
-				)
+				using (FileStream fini = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+				using (StreamReader srini = new StreamReader(fini))
 				{
-					sNameO = sLine.Substring(0, sLine.IndexOf("="));
-					sName = sNameO.Trim().ToUpper();
+					while ((sLine = srini.ReadLine()) != null)
+					{
+						sPara = "";
+						if
+						(
+							sLine.Length > 0 &&
+							sLine[0] != '-' &&
+							sLine[0] != '%' &&
+							sLine[0] != '\'' &&
+							sLine[0] != '/' &&
+							sLine[0] != '!' &&
+							sLine[0] != '[' &&
+							sLine[0] != '#' &&
+							sLine.Contains("=")
+						)
+						{
+							int eqIdx = sLine.IndexOf('=');
+							if (eqIdx >= 0 && !sLine.Substring(eqIdx + 1).Contains("="))
+							{
+								sNameO = sLine.Substring(0, eqIdx);
+								sName = sNameO.Trim().ToUpper();
 
 					if (sName.StartsWith("PEN"))
 					{
@@ -751,6 +950,9 @@ namespace gInk
 							break;
 						case "HOTKEY_GLOBAL":
 							sPara = Hotkey_Global.ToString();
+							break;
+						case "HOTKEY_RADIAL":
+							sPara = Hotkey_Radial.ToString();
 							break;
 						case "HOTKEY_ERASER":
 							sPara = Hotkey_Eraser.ToString();
@@ -824,6 +1026,12 @@ namespace gInk
 							else
 								sPara = "False";
 							break;
+						case "SHOW_BOTTOM_TOOLBAR":
+							if (ShowBottomToolbar)
+								sPara = "True";
+							else
+								sPara = "False";
+							break;
 						case "UNDO_ICON":
 							if (UndoEnabled)
 								sPara = "True";
@@ -874,20 +1082,24 @@ namespace gInk
 							break;
 					}
 				}
-				if (sPara != "")
-					writelines.Add(sNameO + "= " + sPara);
-				else if (sLine != null)
-					writelines.Add(sLine);
 			}
-			fini.Close();
+			if (sPara != "")
+				writelines.Add(sNameO + "= " + sPara);
+			else
+				writelines.Add(sLine);
+		}
+	}
 
-			FileStream frini = new FileStream(file, FileMode.Create);
-			StreamWriter swini = new StreamWriter(frini);
+		using (FileStream frini = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.None))
+		using (StreamWriter swini = new StreamWriter(frini))
+		{
 			swini.AutoFlush = true;
 			foreach (string line in writelines)
 				swini.WriteLine(line);
-			frini.Close();
 		}
+	}
+	catch { }
+}
 
 		private void OnAbout(object sender, EventArgs e)
 		{
@@ -921,19 +1133,13 @@ namespace gInk
 			if (Hotkey_Global.Alt) modifier |= 0x1;
 			if (Hotkey_Global.Shift) modifier |= 0x4;
 			if (Hotkey_Global.Win) modifier |= 0x8;
-			if (modifier != 0)
+			if (modifier != 0 && Hotkey_Global.Key > 0)
 				RegisterHotKey(IntPtr.Zero, 0, modifier, Hotkey_Global.Key);
 		}
 
 		public void UnsetHotkey()
 		{
-			int modifier = 0;
-			if (Hotkey_Global.Control) modifier |= 0x2;
-			if (Hotkey_Global.Alt) modifier |= 0x1;
-			if (Hotkey_Global.Shift) modifier |= 0x4;
-			if (Hotkey_Global.Win) modifier |= 0x8;
-			if (modifier != 0)
-				UnregisterHotKey(IntPtr.Zero, 0);
+			UnregisterHotKey(IntPtr.Zero, 0);
 		}
 
 		public void ChangeLanguage(string filename)

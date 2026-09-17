@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -35,12 +35,14 @@ namespace gInk
 		public string OptionsTabHotkeys = "Hotkeys";
 
 		public string OptionsGeneralLanguage = "Language";
-		public string OptionsGeneralCanvascursor = "Canvus cursor";
-		public string OptionsGeneralCanvascursorArrow = "Arrow";
-		public string OptionsGeneralCanvascursorPentip = "Pen tip";
+		public string OptionsGeneralCanvascursor = "Canvas cursor";
+		public string OptionsGeneralCanvascursorCross = "Coloring dot";
+		public string OptionsGeneralCanvascursorArrow = "Normal Windows pointer";
+		public string OptionsGeneralCanvascursorPentip = "Coloring dot";
 		public string OptionsGeneralSnapshotsavepath = "Snapshot save path";
 		public string OptionsGeneralWhitetrayicon = "Use white tray icon";
 		public string OptionsGeneralAllowdragging = "Allow dragging toolbar";
+		public string OptionsGeneralShowBottomToolbar = "Show bottom toolbar";
 		public string OptionsGeneralNotePenwidth = "Note: pen width panel overides each individual pen width settings";
 
 		public string OptionsPensShow = "Show";
@@ -54,6 +56,7 @@ namespace gInk
 		public string OptionsPensThick = "Thick";
 
 		public string OptionsHotkeysglobal = "Global hotkey (start drawing, switch between mouse pointer and drawing)";
+		public string OptionsHotkeysRadial = "Circular quick action menu";
 		public string OptionsHotkeysEnableinpointer = "Enable all following hotkeys in mouse pointer mode (may cause a mess)";
 
 		public string NotificationSnapshot = "Snapshot saved. Click here to browse snapshots.";
@@ -85,24 +88,23 @@ namespace gInk
 			FileInfo[] Files = d.GetFiles("*.txt");
 			foreach (FileInfo file in Files)
 			{
-				FileStream fini = new FileStream(file.FullName, FileMode.Open);
-				StreamReader srini = new StreamReader(fini);
-				string sLine;
-				do
+				using (FileStream fini = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+				using (StreamReader srini = new StreamReader(fini))
 				{
-					sLine = srini.ReadLine();
+					string sLine;
+					do
+					{
+						sLine = srini.ReadLine();
+					}
+					while (sLine != null && !sLine.StartsWith("LanguageName"));
+					if (sLine == null)
+						continue;
+					string sPara = sLine.Substring(sLine.IndexOf("=") + 1);
+					sPara = sPara.Trim();
+					sPara = sPara.Trim('\"');
+
+					Languages.Add(file.Name.Substring(0, file.Name.Length - 4), sPara);
 				}
-				while (sLine != null && !sLine.StartsWith("LanguageName"));
-				if (sLine == null)
-					continue;
-				string sPara = sLine.Substring(sLine.IndexOf("=") + 1);
-				sPara = sPara.Trim();
-				sPara = sPara.Trim('\"');
-				string languagename = sPara;
-
-				Languages.Add(file.Name.Substring(0, file.Name.Length - 4), sPara);
-
-				fini.Close();
 			}
 		}
 
@@ -142,49 +144,45 @@ namespace gInk
 			if (!File.Exists(filename))
 				return;
 
-			FileStream fini = new FileStream(filename, FileMode.Open);
-			StreamReader srini = new StreamReader(fini);
-			string sLine = "";
-			string sName = "", sPara = "";
-			while (sLine != null)
+			using (FileStream fini = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+			using (StreamReader srini = new StreamReader(fini))
 			{
-				sLine = srini.ReadLine();
-				if
-				(
-					sLine != null &&
-					sLine != "" &&
-					sLine.Substring(0, 1) != "-" &&
-					sLine.Substring(0, 1) != "%" &&
-					sLine.Substring(0, 1) != "'" &&
-					sLine.Substring(0, 1) != "/" &&
-					sLine.Substring(0, 1) != "!" &&
-					sLine.Substring(0, 1) != "[" &&
-					sLine.Substring(0, 1) != "#" &&
-					sLine.Contains("=") &&
-					!sLine.Substring(sLine.IndexOf("=") + 1).Contains("=")
-				)
+				string sLine = "";
+				string sName = "", sPara = "";
+				while ((sLine = srini.ReadLine()) != null)
 				{
-					sName = sLine.Substring(0, sLine.IndexOf("="));
-					sName = sName.Trim();
-					sPara = sLine.Substring(sLine.IndexOf("=") + 1);
-					sPara = sPara.Trim();
-					sPara = sPara.Trim('\"');
-
-					if (sName.StartsWith("ButtonNamePen"))
+					if (sLine.Length > 0 &&
+						sLine[0] != '-' &&
+						sLine[0] != '%' &&
+						sLine[0] != '\'' &&
+						sLine[0] != '/' &&
+						sLine[0] != '!' &&
+						sLine[0] != '[' &&
+						sLine[0] != '#' &&
+						sLine.Contains("="))
 					{
-						int penid = 0;
-						if (int.TryParse(sName.Substring(13, 1), out penid))
+						int eqIdx = sLine.IndexOf("=");
+						if (!sLine.Substring(eqIdx + 1).Contains("="))
 						{
-							ButtonNamePen[penid] = sPara;
+							sName = sLine.Substring(0, eqIdx).Trim();
+							sPara = sLine.Substring(eqIdx + 1).Trim().Trim('\"');
+
+							if (sName.StartsWith("ButtonNamePen") && sName.Length >= 14)
+							{
+								int penid = 0;
+								if (int.TryParse(sName.Substring(13, 1), out penid))
+								{
+									ButtonNamePen[penid] = sPara;
+								}
+							}
+
+							System.Reflection.FieldInfo fi = typeof(Local).GetField(sName);
+							if (fi != null)
+								fi.SetValue(this, sPara);
 						}
 					}
-
-					System.Reflection.FieldInfo fi = typeof(Local).GetField(sName);
-					if (fi != null)
-						fi.SetValue(this, sPara);
 				}
 			}
-			fini.Close();
 
 			CurrentLanguageFile = loname;
 		}
