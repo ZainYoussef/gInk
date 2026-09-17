@@ -55,7 +55,8 @@ namespace gInk
 			int width,
 			int height,
 			bool active,
-			Color? customColor = null)
+			Color? customColor = null,
+			float scaleRatio = 0.48f)
 		{
 			if (width <= 0)
 				width = 24;
@@ -79,7 +80,7 @@ namespace gInk
 
 				float cx = width / 2f;
 				float cy = height / 2f;
-				float size = Math.Min(width, height) * 0.78f;
+				float size = Math.Min(width, height) * scaleRatio;
 
 				DrawIcon(g, type, cx, cy, size, active, customColor);
 			}

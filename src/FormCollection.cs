@@ -33,6 +33,7 @@ namespace gInk
 		public int gpButtonsLeft, gpButtonsTop, gpButtonsWidth, gpButtonsHeight; // the default location, fixed
 
 		public bool gpPenWidth_MouseOn = false;
+		private int[] toolbarSeparators = new int[0];
 
 		public int PrimaryLeft, PrimaryTop;
 
@@ -280,49 +281,44 @@ namespace gInk
 			PrimaryTop = Screen.PrimaryScreen.Bounds.Top - SystemInformation.VirtualScreen.Top;
 
 			gpButtons.Height = (int)(Screen.PrimaryScreen.Bounds.Height * Root.ToolbarHeight);
-			btClear.Height = (int)(gpButtons.Height * 0.88);
-			btClear.Width = btClear.Height;
-			btClear.Top = (int)(gpButtons.Height * 0.07);
-			btDock.Height = (int)(gpButtons.Height * 0.88);
-			btDock.Width = (int)(btDock.Height * 0.75);
-			btDock.Top = (int)(gpButtons.Height * 0.07);
-			btEraser.Height = (int)(gpButtons.Height * 0.88);
-			btEraser.Width = btEraser.Height;
-			btEraser.Top = (int)(gpButtons.Height * 0.07);
-			btInkVisible.Height = (int)(gpButtons.Height * 0.88);
-			btInkVisible.Width = btInkVisible.Height;
-			btInkVisible.Top = (int)(gpButtons.Height * 0.07);
-			btPan.Height = (int)(gpButtons.Height * 0.88);
-			btPan.Width = btPan.Height;
-			btPan.Top = (int)(gpButtons.Height * 0.07);
-			btPointer.Height = (int)(gpButtons.Height * 0.88);
-			btPointer.Width = btPointer.Height;
-			btPointer.Top = (int)(gpButtons.Height * 0.07);
-			btSnap.Height = (int)(gpButtons.Height * 0.88);
-			btSnap.Width = btSnap.Height;
-			btSnap.Top = (int)(gpButtons.Height * 0.07);
-			btStop.Height = (int)(gpButtons.Height * 0.88);
-			btStop.Width = btStop.Height;
-			btStop.Top = (int)(gpButtons.Height * 0.07);
-			btUndo.Height = (int)(gpButtons.Height * 0.88);
-			btUndo.Width = btUndo.Height;
-			btUndo.Top = (int)(gpButtons.Height * 0.07);
+			int btnH = (int)(gpButtons.Height * 0.82);
+			int btnTop = (gpButtons.Height - btnH) / 2;
+			int btnW = btnH;
+
+			btDock.Height = btnH;
+			btDock.Top = btnTop;
+			btDock.Left = 0;
+			btDock.Width = Math.Max(20, (int)(btnH * 0.52));
+
+			Button[] standardButtons = new Button[] { btEraser, btPan, btPointer, btPenWidth, btInkVisible, btSnap, btUndo, btClear, btStop };
+			foreach (Button btn in standardButtons)
+			{
+				btn.Height = btnH;
+				btn.Width = btnW;
+				btn.Top = btnTop;
+			}
 
 			btPen = new Button[Root.MaxPenCount];
 
-			int cumulatedleft = (int)(btStop.Width * 1.2);
+			int itemGap = 3;
+			int sectionGap = 10;
+			List<int> sepPositions = new List<int>();
+
+			int cumulatedleft = btDock.Right + 6;
+
+			// Group 1: Pens
+			bool hasPens = false;
 			for (int b = 0; b < Root.MaxPenCount; b++)
 			{
 				btPen[b] = new Button();
-				btPen[b].Width = (int)(gpButtons.Height * 0.88);
-				btPen[b].Height = (int)(gpButtons.Height * 0.88);
-				btPen[b].Top = (int)(gpButtons.Height * 0.08);
+				btPen[b].Width = btnW;
+				btPen[b].Height = btnH;
+				btPen[b].Top = btnTop;
 				btPen[b].FlatAppearance.BorderColor = System.Drawing.Color.WhiteSmoke;
-				btPen[b].FlatAppearance.BorderSize = 3;
+				btPen[b].FlatAppearance.BorderSize = 1;
 				btPen[b].FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(250, 50, 50);
 				btPen[b].FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 				btPen[b].ForeColor = System.Drawing.Color.Transparent;
-				//btPen[b].Name = "btPen" + b.ToString();
 				btPen[b].UseVisualStyleBackColor = false;
 				btPen[b].Click += new System.EventHandler(this.btColor_Click);
 				btPen[b].BackColor = Root.PenAttr[b].Color;
@@ -341,98 +337,129 @@ namespace gInk
 				{
 					btPen[b].Visible = true;
 					btPen[b].Left = cumulatedleft;
-					cumulatedleft += (int)(btPen[b].Width * 1.1);
+					cumulatedleft += btnW + itemGap;
+					hasPens = true;
 				}
 				else
 				{
 					btPen[b].Visible = false;
 				}
 			}
-			cumulatedleft += (int)(btStop.Width * 0.8);
+
+			// Separator after Pens
+			if (hasPens && (Root.EraserEnabled || Root.PanEnabled || Root.PointerEnabled))
+			{
+				cumulatedleft -= itemGap;
+				sepPositions.Add(cumulatedleft + sectionGap / 2);
+				cumulatedleft += sectionGap;
+			}
+
+			// Group 2: Tools (Eraser, Pan, Pointer)
+			bool hasTools = false;
 			if (Root.EraserEnabled)
 			{
 				btEraser.Visible = true;
 				btEraser.Left = cumulatedleft;
-				cumulatedleft += (int)(btEraser.Width * 1.1);
+				cumulatedleft += btnW + itemGap;
+				hasTools = true;
 			}
-			else
-			{
-				btEraser.Visible = false;
-			}
+			else btEraser.Visible = false;
+
 			if (Root.PanEnabled)
 			{
 				btPan.Visible = true;
 				btPan.Left = cumulatedleft;
-				cumulatedleft += (int)(btPan.Width * 1.1);
+				cumulatedleft += btnW + itemGap;
+				hasTools = true;
 			}
-			else
-			{
-				btPan.Visible = false;
-			}
+			else btPan.Visible = false;
+
 			if (Root.PointerEnabled)
 			{
 				btPointer.Visible = true;
 				btPointer.Left = cumulatedleft;
-				cumulatedleft += (int)(btPointer.Width * 1.1);
+				cumulatedleft += btnW + itemGap;
+				hasTools = true;
 			}
-			else
+			else btPointer.Visible = false;
+
+			// Separator after Tools
+			if (hasTools && (Root.PenWidthEnabled || Root.InkVisibleEnabled || Root.SnapEnabled))
 			{
-				btPointer.Visible = false;
+				cumulatedleft -= itemGap;
+				sepPositions.Add(cumulatedleft + sectionGap / 2);
+				cumulatedleft += sectionGap;
 			}
-			cumulatedleft += (int)(btStop.Width * 0.8);
+
+			// Group 3: Utilities (PenWidth, InkVisible, Snap)
+			bool hasUtils = false;
 			if (Root.PenWidthEnabled)
 			{
 				btPenWidth.Visible = true;
 				btPenWidth.Left = cumulatedleft;
-				cumulatedleft += (int)(btPenWidth.Width * 1.1);
+				cumulatedleft += btnW + itemGap;
+				hasUtils = true;
 			}
-			else
-			{
-				btPenWidth.Visible = false;
-			}
+			else btPenWidth.Visible = false;
+
 			if (Root.InkVisibleEnabled)
 			{
 				btInkVisible.Visible = true;
 				btInkVisible.Left = cumulatedleft;
-				cumulatedleft += (int)(btInkVisible.Width * 1.1);
+				cumulatedleft += btnW + itemGap;
+				hasUtils = true;
 			}
-			else
-			{
-				btInkVisible.Visible = false;
-			}
+			else btInkVisible.Visible = false;
+
 			if (Root.SnapEnabled)
 			{
 				btSnap.Visible = true;
 				btSnap.Left = cumulatedleft;
-				cumulatedleft += (int)(btSnap.Width * 1.1);
+				cumulatedleft += btnW + itemGap;
+				hasUtils = true;
 			}
-			else
+			else btSnap.Visible = false;
+
+			// Separator after Utilities
+			if (hasUtils && (Root.UndoEnabled || Root.ClearEnabled))
 			{
-				btSnap.Visible = false;
+				cumulatedleft -= itemGap;
+				sepPositions.Add(cumulatedleft + sectionGap / 2);
+				cumulatedleft += sectionGap;
 			}
+
+			// Group 4: Actions (Undo, Clear)
+			bool hasActions = false;
 			if (Root.UndoEnabled)
 			{
 				btUndo.Visible = true;
 				btUndo.Left = cumulatedleft;
-				cumulatedleft += (int)(btUndo.Width * 1.1);
+				cumulatedleft += btnW + itemGap;
+				hasActions = true;
 			}
-			else
-			{
-				btUndo.Visible = false;
-			}
+			else btUndo.Visible = false;
+
 			if (Root.ClearEnabled)
 			{
 				btClear.Visible = true;
 				btClear.Left = cumulatedleft;
-				cumulatedleft += (int)(btClear.Width * 1.1);
+				cumulatedleft += btnW + itemGap;
+				hasActions = true;
 			}
-			else
+			else btClear.Visible = false;
+
+			// Separator before Exit
+			if (hasActions || hasUtils || hasTools || hasPens)
 			{
-				btClear.Visible = false;
+				cumulatedleft -= itemGap;
+				sepPositions.Add(cumulatedleft + sectionGap / 2);
+				cumulatedleft += sectionGap;
 			}
-			cumulatedleft += (int)(btStop.Width * 0.8);
+
+			// Group 5: Exit
 			btStop.Left = cumulatedleft;
-			gpButtons.Width = btStop.Right + (int)(btStop.Width * 0.5);
+			gpButtons.Width = btStop.Right + 6;
+			toolbarSeparators = sepPositions.ToArray();
 			
 
 			this.Left = SystemInformation.VirtualScreen.Left;
@@ -478,9 +505,12 @@ namespace gInk
 
 			gpButtons.Left = gpButtonsLeft + gpButtons.Width;
 			gpButtons.Top = gpButtonsTop;
+			gpPenWidth.Height = (int)(gpButtons.Height * 0.84);
+			gpPenWidth.Width = 220;
 			gpPenWidth.Left = gpButtonsLeft + btPenWidth.Left - gpPenWidth.Width / 2 + btPenWidth.Width / 2;
-			gpPenWidth.Top = gpButtonsTop - gpPenWidth.Height - 10;
+			gpPenWidth.Top = gpButtonsTop - gpPenWidth.Height - 8;
 
+			pboxPenWidthIndicator.Height = gpPenWidth.Height;
 			pboxPenWidthIndicator.Top = 0;
 			pboxPenWidthIndicator.Left = (int)Math.Sqrt(Root.GlobalPenWidth * 30);
 			gpPenWidth.Controls.Add(pboxPenWidthIndicator);
@@ -941,7 +971,7 @@ namespace gInk
 				if (btPen[b] != null)
 				{
 					bool isSelected = (activePen == b && !Root.EraserMode && !Root.PointerMode && !Root.PanMode);
-					btPen[b].FlatAppearance.BorderSize = isSelected ? 3 : 1;
+					btPen[b].FlatAppearance.BorderSize = isSelected ? 2 : 1;
 					btPen[b].FlatAppearance.BorderColor = isSelected ? theme.PenActiveBorder : theme.PenNormalBorder;
 				}
 			}
@@ -1078,7 +1108,7 @@ namespace gInk
 		{
 			if (gpButtons.Width > 0 && gpButtons.Height > 0)
 			{
-				int r = Math.Min(14, gpButtons.Height / 3);
+				int r = 5;
 				using (GraphicsPath path = CreateRoundedRectanglePath(0, 0, gpButtons.Width, gpButtons.Height, r))
 				{
 					gpButtons.Region = new Region(path);
@@ -1086,7 +1116,7 @@ namespace gInk
 			}
 			if (gpPenWidth.Width > 0 && gpPenWidth.Height > 0)
 			{
-				int r = Math.Min(12, gpPenWidth.Height / 3);
+				int r = 5;
 				using (GraphicsPath path = CreateRoundedRectanglePath(0, 0, gpPenWidth.Width, gpPenWidth.Height, r))
 				{
 					gpPenWidth.Region = new Region(path);
@@ -1116,7 +1146,7 @@ namespace gInk
 
 			int w = gpButtons.Width;
 			int h = gpButtons.Height;
-			int r = Math.Min(14, h / 3);
+			int r = 5;
 
 			// 1px outer border
 			using (GraphicsPath borderPath = CreateRoundedRectanglePath(0.5f, 0.5f, w - 1f, h - 1f, r))
@@ -1128,7 +1158,21 @@ namespace gInk
 			// 1px top specular rim highlight
 			using (Pen rimPen = new Pen(theme.SpecularRim, 1.0f))
 			{
-				g.DrawLine(rimPen, r, 1.5f, w - r, 1.5f);
+				g.DrawLine(rimPen, r + 2, 1.5f, w - r - 2, 1.5f);
+			}
+
+			// Subtle vertical group separators
+			if (toolbarSeparators != null && toolbarSeparators.Length > 0)
+			{
+				int y1 = (int)(h * 0.22f);
+				int y2 = (int)(h * 0.78f);
+				using (Pen sepPen = new Pen(theme.ToolbarBorder, 1.0f))
+				{
+					for (int i = 0; i < toolbarSeparators.Length; i++)
+					{
+						g.DrawLine(sepPen, toolbarSeparators[i], y1, toolbarSeparators[i], y2);
+					}
+				}
 			}
 		}
 
@@ -1142,7 +1186,7 @@ namespace gInk
 
 			int w = gpPenWidth.Width;
 			int h = gpPenWidth.Height;
-			int r = Math.Min(12, h / 3);
+			int r = 5;
 
 			// 1px outer border
 			using (GraphicsPath borderPath = CreateRoundedRectanglePath(0.5f, 0.5f, w - 1f, h - 1f, r))
