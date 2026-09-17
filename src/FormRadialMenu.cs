@@ -159,6 +159,14 @@ namespace gInk
 			this.Hide();
 		}
 
+		public void ApplyTheme(UITheme theme)
+		{
+			if (this.Visible)
+			{
+				RenderMenu();
+			}
+		}
+
 		private PointF GetColorOrbPosition(int index, int totalCount)
 		{
 			if (totalCount <= 0)
@@ -511,17 +519,18 @@ namespace gInk
 				g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
 
 				g.Clear(Color.Transparent);
+				UITheme theme = Root.CurrentTheme ?? UITheme.Get(0);
 
-				// 1. Frosted Obsidian Glass Chassis Backdrop
+				// 1. Frosted Glass Chassis Backdrop
 				using (GraphicsPath baseDisc = new GraphicsPath())
 				{
 					float chassisR = OuterRingRadius + 9f;
 					baseDisc.AddEllipse(CenterX - chassisR, CenterY - chassisR, chassisR * 2, chassisR * 2);
-					using (SolidBrush chassisBrush = new SolidBrush(Color.FromArgb(140, 12, 16, 24)))
+					using (SolidBrush chassisBrush = new SolidBrush(theme.RadialChassisBg))
 					{
 						g.FillPath(chassisBrush, baseDisc);
 					}
-					using (Pen chassisBorder = new Pen(Color.FromArgb(32, 255, 255, 255), 1.0f))
+					using (Pen chassisBorder = new Pen(theme.RadialChassisBorder, 1.0f))
 					{
 						g.DrawPath(chassisBorder, baseDisc);
 					}
@@ -532,7 +541,7 @@ namespace gInk
 				{
 					haloPath.AddEllipse(CenterX - OuterRingRadius - 4, CenterY - OuterRingRadius - 4,
 						(OuterRingRadius + 4) * 2, (OuterRingRadius + 4) * 2);
-					using (SolidBrush haloBrush = new SolidBrush(Color.FromArgb(16, 0, 240, 160)))
+					using (SolidBrush haloBrush = new SolidBrush(theme.RadialAmbientGlow))
 					{
 						g.FillPath(haloBrush, haloPath);
 					}
@@ -556,17 +565,17 @@ namespace gInk
 						{
 							// Outer soft glow halo
 							using (GraphicsPath haloPill = CreateRoundedDonutSector(CenterX, CenterY, rIn - 2f, rOut + 2f, startAngle - 0.5f, sweepAngle + 1.0f, 7f))
-							using (SolidBrush haloPillBrush = new SolidBrush(Color.FromArgb(40, 0, 240, 170)))
+							using (SolidBrush haloPillBrush = new SolidBrush(theme.PillHoverGlow))
 							{
 								g.FillPath(haloPillBrush, haloPill);
 							}
 
 							// Luminous hover gradient wash
-							using (SolidBrush hoverBrush = new SolidBrush(Color.FromArgb(235, 8, 52, 44)))
+							using (SolidBrush hoverBrush = new SolidBrush(theme.PillHoverBg))
 							{
 								g.FillPath(hoverBrush, pillPath);
 							}
-							using (Pen glowPen = new Pen(Color.FromArgb(255, 0, 245, 175), 2.2f))
+							using (Pen glowPen = new Pen(theme.PillHoverBorder, 2.2f))
 							{
 								glowPen.LineJoin = LineJoin.Round;
 								g.DrawPath(glowPen, pillPath);
@@ -574,19 +583,19 @@ namespace gInk
 						}
 						else
 						{
-							// Frosted obsidian glass floating pill
-							using (SolidBrush pillBrush = new SolidBrush(Color.FromArgb(220, 20, 26, 36)))
+							// Floating pill
+							using (SolidBrush pillBrush = new SolidBrush(theme.PillNormalBg))
 							{
 								g.FillPath(pillBrush, pillPath);
 							}
-							using (Pen borderPen = new Pen(Color.FromArgb(45, 255, 255, 255), 1.0f))
+							using (Pen borderPen = new Pen(theme.PillNormalBorder, 1.0f))
 							{
 								borderPen.LineJoin = LineJoin.Round;
 								g.DrawPath(borderPen, pillPath);
 							}
 
 							// 1px subtle specular rim on outer edge
-							using (Pen rimPen = new Pen(Color.FromArgb(25, 255, 255, 255), 1.0f))
+							using (Pen rimPen = new Pen(theme.PillNormalRim, 1.0f))
 							{
 								g.DrawArc(rimPen, CenterX - rOut + 1f, CenterY - rOut + 1f, (rOut - 1f) * 2, (rOut - 1f) * 2, startAngle + 4f, sweepAngle - 8f);
 							}
@@ -613,13 +622,13 @@ namespace gInk
 
 					if (isActiveTool)
 					{
-						using (Pen activeGlow = new Pen(Color.FromArgb(80, 0, 240, 170), 3.5f))
+						using (Pen activeGlow = new Pen(theme.ActiveToolGlowColor, 3.5f))
 						{
 							activeGlow.StartCap = LineCap.Round;
 							activeGlow.EndCap = LineCap.Round;
 							g.DrawArc(activeGlow, CenterX - rIn - 1f, CenterY - rIn - 1f, (rIn + 1f) * 2, (rIn + 1f) * 2, startAngle + 7f, sweepAngle - 14f);
 						}
-						using (Pen activeArc = new Pen(Color.FromArgb(255, 0, 255, 180), 1.8f))
+						using (Pen activeArc = new Pen(theme.ActiveToolIndicatorColor, 1.8f))
 						{
 							activeArc.StartCap = LineCap.Round;
 							activeArc.EndCap = LineCap.Round;
@@ -643,19 +652,20 @@ namespace gInk
 		private void DrawCenterHub(Graphics g)
 		{
 			bool isCenterHovered = (hoveredTarget == RadialTarget.Center);
+			UITheme theme = Root.CurrentTheme ?? UITheme.Get(0);
 
-			// Center Circle Base (Dark Smoked Acrylic with neon glow)
+			// Center Circle Base
 			using (GraphicsPath centerPath = new GraphicsPath())
 			{
 				centerPath.AddEllipse(CenterX - CenterRadius, CenterY - CenterRadius, CenterRadius * 2, CenterRadius * 2);
 
-				Color fillCol = isCenterHovered ? Color.FromArgb(248, 16, 44, 38) : Color.FromArgb(245, 15, 20, 28);
+				Color fillCol = isCenterHovered ? theme.CenterHubHoverBg : theme.CenterHubBg;
 				using (SolidBrush centerBrush = new SolidBrush(fillCol))
 				{
 					g.FillPath(centerBrush, centerPath);
 				}
 
-				Color borderCol = isCenterHovered ? Color.FromArgb(255, 0, 255, 180) : Color.FromArgb(190, 0, 230, 160);
+				Color borderCol = isCenterHovered ? theme.CenterHubHoverBorder : theme.CenterHubBorder;
 				float borderWidth = isCenterHovered ? 2.5f : 1.8f;
 				using (Pen centerPen = new Pen(borderCol, borderWidth))
 				{
@@ -663,7 +673,7 @@ namespace gInk
 				}
 
 				// Inner subtle specular chamfer ring
-				using (Pen innerSpecular = new Pen(Color.FromArgb(35, 255, 255, 255), 1.0f))
+				using (Pen innerSpecular = new Pen(theme.SpecularRim, 1.0f))
 				{
 					g.DrawEllipse(innerSpecular, CenterX - CenterRadius + 3.5f, CenterY - CenterRadius + 3.5f, (CenterRadius - 3.5f) * 2, (CenterRadius - 3.5f) * 2);
 				}
@@ -702,7 +712,7 @@ namespace gInk
 				case RadialTarget.Snapshot:
 					title = "Snapshot";
 					subtitle = "Capture Region";
-					subColor = Color.FromArgb(0, 240, 170);
+					subColor = theme.CenterSubAccent;
 					break;
 
 				case RadialTarget.Erase:
@@ -714,25 +724,25 @@ namespace gInk
 				case RadialTarget.Undo:
 					title = "Undo";
 					subtitle = "Undo (Scroll: Redo)";
-					subColor = Color.FromArgb(0, 240, 170);
+					subColor = theme.CenterSubAccent;
 					break;
 
 				case RadialTarget.Pointer:
 					title = "Pointer";
 					subtitle = Root.PointerMode ? "Pointer Active" : "Desktop Pass-Through";
-					subColor = Color.FromArgb(0, 240, 170);
+					subColor = theme.CenterSubAccent;
 					break;
 
 				case RadialTarget.InkVisible:
 					title = "Ink";
 					subtitle = Root.InkVisible ? "Ink Visible" : "Ink Hidden";
-					subColor = Root.InkVisible ? Color.FromArgb(0, 240, 170) : Color.FromArgb(255, 95, 105);
+					subColor = Root.InkVisible ? theme.CenterSubAccent : Color.FromArgb(255, 95, 105);
 					break;
 
 				case RadialTarget.Pan:
 					title = "Pan";
 					subtitle = "Pan Canvas";
-					subColor = Color.FromArgb(0, 240, 170);
+					subColor = theme.CenterSubAccent;
 					break;
 
 				case RadialTarget.ColorSwatch:
@@ -741,7 +751,7 @@ namespace gInk
 						subtitle = GetColorName(Root.PenAttr[hoveredPenIndex].Color) + " #" + hoveredPenIndex;
 					else
 						subtitle = "Pen Swatch";
-					subColor = Color.FromArgb(0, 240, 170);
+					subColor = theme.CenterSubAccent;
 					break;
 
 				case RadialTarget.Center:
@@ -749,7 +759,7 @@ namespace gInk
 				default:
 					title = "Cancel";
 					subtitle = isCenterHovered ? "Release to Cancel" : "Close";
-					subColor = isCenterHovered ? Color.FromArgb(0, 240, 170) : Color.FromArgb(145, 170, 190);
+					subColor = isCenterHovered ? theme.CenterSubAccent : theme.CenterSubNeutral;
 					break;
 			}
 
@@ -770,7 +780,7 @@ namespace gInk
 					g.DrawEllipse(dotRing, CenterX - dotRadius, CenterY - 14f - dotRadius, dotRadius * 2, dotRadius * 2);
 				}
 
-				using (SolidBrush titleBrush = new SolidBrush(Color.White))
+				using (SolidBrush titleBrush = new SolidBrush(theme.CenterTitleColor))
 				{
 					string sizeStr = (widthVal / 10).ToString() + " px";
 					SizeF sz = g.MeasureString(sizeStr, _fontPenSize);
@@ -787,7 +797,7 @@ namespace gInk
 			}
 
 			// Main Title
-			using (SolidBrush titleBrush = new SolidBrush(Color.White))
+			using (SolidBrush titleBrush = new SolidBrush(theme.CenterTitleColor))
 			{
 				SizeF size = g.MeasureString(title, _fontCenterTitle);
 				g.DrawString(title, _fontCenterTitle, titleBrush, CenterX - size.Width / 2f, CenterY - size.Height / 2f - 6f);
@@ -807,7 +817,8 @@ namespace gInk
 			if (count == 0) return;
 
 			// Sleek glowing orbital guide track (full 360 degree circle)
-			using (Pen orbitPen = new Pen(Color.FromArgb(40, 255, 255, 255), 1.2f))
+			UITheme theme = Root.CurrentTheme ?? UITheme.Get(0);
+			using (Pen orbitPen = new Pen(theme.OrbitalGuideTrackColor, 1.2f))
 			{
 				orbitPen.DashStyle = DashStyle.Dot;
 				g.DrawEllipse(orbitPen, CenterX - ColorOrbRadius, CenterY - ColorOrbRadius, ColorOrbRadius * 2, ColorOrbRadius * 2);

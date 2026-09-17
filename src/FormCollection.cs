@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -484,6 +485,11 @@ namespace gInk
 			pboxPenWidthIndicator.Left = (int)Math.Sqrt(Root.GlobalPenWidth * 30);
 			gpPenWidth.Controls.Add(pboxPenWidthIndicator);
 
+			gpButtons.Paint += gpButtons_Paint;
+			gpButtons.Resize += (s, e) => UpdateChassisRegion();
+			gpPenWidth.Paint += gpPenWidth_Paint;
+			gpPenWidth.Resize += (s, e) => UpdateChassisRegion();
+
 			if (!Root.ShowBottomToolbar || Root.AlwaysHideToolbar)
 			{
 				gpButtons.Visible = false;
@@ -508,60 +514,7 @@ namespace gInk
 			IC.Enabled = true;
 			InstallMouseHook();
 
-			image_exit = ModernIcons.CreateIcon(ModernIconType.Exit, btStop.Width, btStop.Height, false);
-			btStop.Image = image_exit;
-
-			image_clear = ModernIcons.CreateIcon(ModernIconType.Clear, btClear.Width, btClear.Height, false);
-			btClear.Image = image_clear;
-
-			image_undo = ModernIcons.CreateIcon(ModernIconType.Undo, btUndo.Width, btUndo.Height, false);
-			btUndo.Image = image_undo;
-
-			image_eraser = ModernIcons.CreateIcon(ModernIconType.Eraser, btEraser.Width, btEraser.Height, false);
-			image_eraser_act = ModernIcons.CreateIcon(ModernIconType.Eraser, btEraser.Width, btEraser.Height, true);
-			btEraser.Image = image_eraser;
-
-			image_pan = ModernIcons.CreateIcon(ModernIconType.Pan, btPan.Width, btPan.Height, false);
-			image_pan_act = ModernIcons.CreateIcon(ModernIconType.Pan, btPan.Width, btPan.Height, true);
-			btPan.Image = image_pan;
-
-			image_visible = ModernIcons.CreateIcon(ModernIconType.Visible, btInkVisible.Width, btInkVisible.Height, false);
-			image_visible_not = ModernIcons.CreateIcon(ModernIconType.VisibleNot, btInkVisible.Width, btInkVisible.Height, true);
-			btInkVisible.Image = image_visible;
-
-			image_snap = ModernIcons.CreateIcon(ModernIconType.Snapshot, btSnap.Width, btSnap.Height, false);
-			btSnap.Image = image_snap;
-
-			image_penwidth = ModernIcons.CreateIcon(ModernIconType.PenWidth, btPenWidth.Width, btPenWidth.Height, false);
-			btPenWidth.Image = image_penwidth;
-
-			image_dock = ModernIcons.CreateIcon(ModernIconType.Dock, btDock.Width, btDock.Height, false);
-			image_dockback = ModernIcons.CreateIcon(ModernIconType.DockBack, btDock.Width, btDock.Height, true);
-			if (Root.Docked)
-				btDock.Image = image_dockback;
-			else
-				btDock.Image = image_dock;
-
-			image_pointer = ModernIcons.CreateIcon(ModernIconType.Pointer, btPointer.Width, btPointer.Height, false);
-			image_pointer_act = ModernIcons.CreateIcon(ModernIconType.Pointer, btPointer.Width, btPointer.Height, true);
-
-			image_pencil = ModernIcons.CreateIcon(ModernIconType.Pen, btPen[2].Width, btPen[2].Height, false);
-			image_pencil_act = ModernIcons.CreateIcon(ModernIconType.Pen, btPen[2].Width, btPen[2].Height, true);
-
-			image_highlighter = ModernIcons.CreateIcon(ModernIconType.Highlighter, btPen[2].Width, btPen[2].Height, false);
-			image_highlighter_act = ModernIcons.CreateIcon(ModernIconType.Highlighter, btPen[2].Width, btPen[2].Height, true);
-
-			image_pen = new Bitmap[Root.MaxPenCount];
-			image_pen_act = new Bitmap[Root.MaxPenCount];
-			for (int b = 0; b < Root.MaxPenCount; b++)
-			{
-				bool isHighlighter = Root.PenAttr[b].Transparency >= 100;
-				ModernIconType penType = isHighlighter ? ModernIconType.Highlighter : ModernIconType.Pen;
-				Color penCol = Root.PenAttr[b].Color;
-
-				image_pen[b] = ModernIcons.CreateIcon(penType, btPen[b].Width, btPen[b].Height, false, penCol);
-				image_pen_act[b] = ModernIcons.CreateIcon(penType, btPen[b].Width, btPen[b].Height, true, penCol);
-			}
+			ApplyTheme(Root.CurrentTheme);
 
 			LastTickTime = DateTime.Parse("1987-01-01");
 			tiSlide.Enabled = true;
@@ -965,6 +918,7 @@ namespace gInk
 				}
 			}
 			Root.CurrentPen = pen;
+			UpdatePenBorders(pen);
 			if (Root.gpPenWidthVisible)
 			{
 				Root.gpPenWidthVisible = false;
@@ -975,6 +929,233 @@ namespace gInk
 
 			if (pen != -2)
 				Root.LastPen = pen;
+		}
+
+		public void UpdatePenBorders(int activePen)
+		{
+			UITheme theme = Root.CurrentTheme;
+			if (theme == null || btPen == null) return;
+
+			for (int b = 0; b < Root.MaxPenCount; b++)
+			{
+				if (btPen[b] != null)
+				{
+					bool isSelected = (activePen == b && !Root.EraserMode && !Root.PointerMode && !Root.PanMode);
+					btPen[b].FlatAppearance.BorderSize = isSelected ? 3 : 1;
+					btPen[b].FlatAppearance.BorderColor = isSelected ? theme.PenActiveBorder : theme.PenNormalBorder;
+				}
+			}
+		}
+
+		public void ApplyTheme(UITheme theme)
+		{
+			if (theme == null) return;
+
+			ModernIcons.SetPalette(theme.IconInactive, theme.IconActive, theme.IconDanger);
+
+			DisposeBitmap(ref image_exit);
+			DisposeBitmap(ref image_clear);
+			DisposeBitmap(ref image_undo);
+			DisposeBitmap(ref image_eraser);
+			DisposeBitmap(ref image_eraser_act);
+			DisposeBitmap(ref image_pan);
+			DisposeBitmap(ref image_pan_act);
+			DisposeBitmap(ref image_visible);
+			DisposeBitmap(ref image_visible_not);
+			DisposeBitmap(ref image_snap);
+			DisposeBitmap(ref image_penwidth);
+			DisposeBitmap(ref image_dock);
+			DisposeBitmap(ref image_dockback);
+			DisposeBitmap(ref image_pointer);
+			DisposeBitmap(ref image_pointer_act);
+			DisposeBitmap(ref image_pencil);
+			DisposeBitmap(ref image_pencil_act);
+			DisposeBitmap(ref image_highlighter);
+			DisposeBitmap(ref image_highlighter_act);
+
+			if (image_pen != null)
+			{
+				for (int i = 0; i < image_pen.Length; i++)
+					DisposeBitmap(ref image_pen[i]);
+			}
+			if (image_pen_act != null)
+			{
+				for (int i = 0; i < image_pen_act.Length; i++)
+					DisposeBitmap(ref image_pen_act[i]);
+			}
+
+			// Recreate vector icons
+			image_exit = ModernIcons.CreateIcon(ModernIconType.Exit, btStop.Width, btStop.Height, false);
+			image_clear = ModernIcons.CreateIcon(ModernIconType.Clear, btClear.Width, btClear.Height, false);
+			image_undo = ModernIcons.CreateIcon(ModernIconType.Undo, btUndo.Width, btUndo.Height, false);
+			image_eraser = ModernIcons.CreateIcon(ModernIconType.Eraser, btEraser.Width, btEraser.Height, false);
+			image_eraser_act = ModernIcons.CreateIcon(ModernIconType.Eraser, btEraser.Width, btEraser.Height, true);
+			image_pan = ModernIcons.CreateIcon(ModernIconType.Pan, btPan.Width, btPan.Height, false);
+			image_pan_act = ModernIcons.CreateIcon(ModernIconType.Pan, btPan.Width, btPan.Height, true);
+			image_visible = ModernIcons.CreateIcon(ModernIconType.Visible, btInkVisible.Width, btInkVisible.Height, false);
+			image_visible_not = ModernIcons.CreateIcon(ModernIconType.VisibleNot, btInkVisible.Width, btInkVisible.Height, true);
+			image_snap = ModernIcons.CreateIcon(ModernIconType.Snapshot, btSnap.Width, btSnap.Height, false);
+			image_penwidth = ModernIcons.CreateIcon(ModernIconType.PenWidth, btPenWidth.Width, btPenWidth.Height, false);
+			image_dock = ModernIcons.CreateIcon(ModernIconType.Dock, btDock.Width, btDock.Height, false);
+			image_dockback = ModernIcons.CreateIcon(ModernIconType.DockBack, btDock.Width, btDock.Height, true);
+			image_pointer = ModernIcons.CreateIcon(ModernIconType.Pointer, btPointer.Width, btPointer.Height, false);
+			image_pointer_act = ModernIcons.CreateIcon(ModernIconType.Pointer, btPointer.Width, btPointer.Height, true);
+			image_pencil = ModernIcons.CreateIcon(ModernIconType.Pen, btPen[2].Width, btPen[2].Height, false);
+			image_pencil_act = ModernIcons.CreateIcon(ModernIconType.Pen, btPen[2].Width, btPen[2].Height, true);
+			image_highlighter = ModernIcons.CreateIcon(ModernIconType.Highlighter, btPen[2].Width, btPen[2].Height, false);
+			image_highlighter_act = ModernIcons.CreateIcon(ModernIconType.Highlighter, btPen[2].Width, btPen[2].Height, true);
+
+			image_pen = new Bitmap[Root.MaxPenCount];
+			image_pen_act = new Bitmap[Root.MaxPenCount];
+			for (int b = 0; b < Root.MaxPenCount; b++)
+			{
+				bool isHighlighter = Root.PenAttr[b].Transparency >= 100;
+				ModernIconType penType = isHighlighter ? ModernIconType.Highlighter : ModernIconType.Pen;
+				Color penCol = Root.PenAttr[b].Color;
+
+				image_pen[b] = ModernIcons.CreateIcon(penType, btPen[b].Width, btPen[b].Height, false, penCol);
+				image_pen_act[b] = ModernIcons.CreateIcon(penType, btPen[b].Width, btPen[b].Height, true, penCol);
+			}
+
+			// Style Bottom Panel Chassis
+			gpButtons.BackColor = theme.ToolbarBg;
+
+			// Style Tool Buttons
+			Button[] toolButtons = new Button[]
+			{
+				btDock, btPenWidth, btEraser, btPan, btPointer, btInkVisible, btSnap, btUndo, btClear, btStop
+			};
+			foreach (Button btn in toolButtons)
+			{
+				if (btn != null)
+				{
+					btn.BackColor = theme.ToolbarBg;
+					btn.FlatAppearance.MouseOverBackColor = theme.ButtonHoverBg;
+					btn.FlatAppearance.MouseDownBackColor = theme.ButtonDownBg;
+				}
+			}
+
+			// Style Pen Buttons
+			for (int b = 0; b < Root.MaxPenCount; b++)
+			{
+				if (btPen[b] != null)
+				{
+					btPen[b].BackColor = Root.PenAttr[b].Color;
+					btPen[b].FlatAppearance.MouseDownBackColor = Root.PenAttr[b].Color;
+					btPen[b].FlatAppearance.MouseOverBackColor = Root.PenAttr[b].Color;
+				}
+			}
+			UpdatePenBorders(Root.CurrentPen);
+
+			// Refresh active button images
+			btStop.Image = image_exit;
+			btClear.Image = image_clear;
+			btUndo.Image = image_undo;
+			btSnap.Image = image_snap;
+			btPenWidth.Image = image_penwidth;
+			btDock.Image = Root.Docked ? image_dockback : image_dock;
+			btInkVisible.Image = Root.InkVisible ? image_visible : image_visible_not;
+
+			if (Root.PanMode)
+				SelectPen(-3);
+			else if (Root.PointerMode)
+				SelectPen(-2);
+			else if (Root.EraserMode)
+				SelectPen(-1);
+			else if (Root.CurrentPen >= 0)
+				SelectPen(Root.CurrentPen);
+
+			// Style Pen Width Panel
+			gpPenWidth.BackColor = theme.PenWidthPanelBg;
+			pboxPenWidthIndicator.BackColor = theme.PenWidthIndicatorColor;
+
+			UpdateChassisRegion();
+			gpButtons.Invalidate();
+			gpPenWidth.Invalidate();
+		}
+
+		private void UpdateChassisRegion()
+		{
+			if (gpButtons.Width > 0 && gpButtons.Height > 0)
+			{
+				int r = Math.Min(14, gpButtons.Height / 3);
+				using (GraphicsPath path = CreateRoundedRectanglePath(0, 0, gpButtons.Width, gpButtons.Height, r))
+				{
+					gpButtons.Region = new Region(path);
+				}
+			}
+			if (gpPenWidth.Width > 0 && gpPenWidth.Height > 0)
+			{
+				int r = Math.Min(12, gpPenWidth.Height / 3);
+				using (GraphicsPath path = CreateRoundedRectanglePath(0, 0, gpPenWidth.Width, gpPenWidth.Height, r))
+				{
+					gpPenWidth.Region = new Region(path);
+				}
+			}
+		}
+
+		private static GraphicsPath CreateRoundedRectanglePath(float x, float y, float width, float height, float radius)
+		{
+			GraphicsPath path = new GraphicsPath();
+			float d = radius * 2f;
+			path.AddArc(x, y, d, d, 180, 90);
+			path.AddArc(x + width - d, y, d, d, 270, 90);
+			path.AddArc(x + width - d, y + height - d, d, d, 0, 90);
+			path.AddArc(x, y + height - d, d, d, 90, 90);
+			path.CloseFigure();
+			return path;
+		}
+
+		private void gpButtons_Paint(object sender, PaintEventArgs e)
+		{
+			UITheme theme = Root.CurrentTheme;
+			if (theme == null) return;
+
+			Graphics g = e.Graphics;
+			g.SmoothingMode = SmoothingMode.AntiAlias;
+
+			int w = gpButtons.Width;
+			int h = gpButtons.Height;
+			int r = Math.Min(14, h / 3);
+
+			// 1px outer border
+			using (GraphicsPath borderPath = CreateRoundedRectanglePath(0.5f, 0.5f, w - 1f, h - 1f, r))
+			using (Pen borderPen = new Pen(theme.ToolbarBorder, 1.2f))
+			{
+				g.DrawPath(borderPen, borderPath);
+			}
+
+			// 1px top specular rim highlight
+			using (Pen rimPen = new Pen(theme.SpecularRim, 1.0f))
+			{
+				g.DrawLine(rimPen, r, 1.5f, w - r, 1.5f);
+			}
+		}
+
+		private void gpPenWidth_Paint(object sender, PaintEventArgs e)
+		{
+			UITheme theme = Root.CurrentTheme;
+			if (theme == null) return;
+
+			Graphics g = e.Graphics;
+			g.SmoothingMode = SmoothingMode.AntiAlias;
+
+			int w = gpPenWidth.Width;
+			int h = gpPenWidth.Height;
+			int r = Math.Min(12, h / 3);
+
+			// 1px outer border
+			using (GraphicsPath borderPath = CreateRoundedRectanglePath(0.5f, 0.5f, w - 1f, h - 1f, r))
+			using (Pen borderPen = new Pen(theme.ToolbarBorder, 1.2f))
+			{
+				g.DrawPath(borderPen, borderPath);
+			}
+
+			// Center slider track line
+			using (Pen trackPen = new Pen(theme.PenWidthTrackColor, 2.0f))
+			{
+				g.DrawLine(trackPen, 15, h / 2, w - 15, h / 2);
+			}
 		}
 
 		public void TogglePenOrHighlighter(int penIndex)
