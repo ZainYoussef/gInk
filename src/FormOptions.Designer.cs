@@ -1,4 +1,4 @@
-﻿namespace gInk
+namespace gInk
 {
 	partial class FormOptions
 	{
@@ -228,8 +228,8 @@
 			this.comboCanvasCursor.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
 			this.comboCanvasCursor.FormattingEnabled = true;
 			this.comboCanvasCursor.Items.AddRange(new object[] {
-            "Arrow",
-            "Pen tip"});
+            "Coloring dot",
+            "Normal Windows pointer"});
 			this.comboCanvasCursor.Location = new System.Drawing.Point(266, 249);
 			this.comboCanvasCursor.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
 			this.comboCanvasCursor.Name = "comboCanvasCursor";
@@ -291,7 +291,6 @@
 			// 
 			// pictureBox1
 			// 
-			this.pictureBox1.BackgroundImage = global::gInk.Properties.Resources.paneloption;
 			this.pictureBox1.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Stretch;
 			this.pictureBox1.Location = new System.Drawing.Point(12, 23);
 			this.pictureBox1.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -22,6 +22,10 @@ namespace gInk
 
 		Label[] lbHotkeyPens = new Label[10];
 		HotkeyInputBox[] hiPens = new HotkeyInputBox[10];
+
+		CheckBox cbShowBottomToolbar;
+		Label lbHkRadial;
+		HotkeyInputBox hiRadial;
 
 		public FormOptions(Root root)
 		{
@@ -56,6 +60,14 @@ namespace gInk
 				cbAllowDragging.Checked = true;
 			if (Root.AllowHotkeyInPointerMode)
 				cbAllowHotkeyInPointer.Checked = true;
+
+			cbShowBottomToolbar = new CheckBox();
+			cbShowBottomToolbar.AutoSize = true;
+			cbShowBottomToolbar.Checked = Root.ShowBottomToolbar;
+			cbShowBottomToolbar.Location = new Point(cbAllowDragging.Left, cbAllowDragging.Bottom + 12);
+			cbShowBottomToolbar.Text = Root.Local.OptionsGeneralShowBottomToolbar;
+			cbShowBottomToolbar.CheckedChanged += (s, ev) => Root.ShowBottomToolbar = cbShowBottomToolbar.Checked;
+			tabPage1.Controls.Add(cbShowBottomToolbar);
 
 			comboCanvasCursor.SelectedIndex = Root.CanvasCursor;
 
@@ -157,6 +169,24 @@ namespace gInk
 			}
 
 			hiGlobal.Hotkey = Root.Hotkey_Global;
+
+			lbHkRadial = new Label();
+			lbHkRadial.Left = 240;
+			lbHkRadial.Top = 20;
+			lbHkRadial.Width = 240;
+			lbHkRadial.Text = Root.Local.OptionsHotkeysRadial;
+
+			hiRadial = new HotkeyInputBox();
+			hiRadial.Hotkey = Root.Hotkey_Radial;
+			hiRadial.Left = 240;
+			hiRadial.Top = 40;
+			hiRadial.Width = 178;
+			hiRadial.RequireModifier = false;
+			hiRadial.OnHotkeyChanged += hi_OnHotkeyChanged;
+
+			tabPage3.Controls.Add(lbHkRadial);
+			tabPage3.Controls.Add(hiRadial);
+
 			hiEraser.Hotkey = Root.Hotkey_Eraser;
 			hiPan.Hotkey = Root.Hotkey_Pan;
 			hiInkVisible.Hotkey = Root.Hotkey_InkVisible;
@@ -180,6 +210,8 @@ namespace gInk
 			this.lbSnapshotsavepath.Text = Root.Local.OptionsGeneralSnapshotsavepath;
 			this.cbWhiteIcon.Text = Root.Local.OptionsGeneralWhitetrayicon;
 			this.cbAllowDragging.Text = Root.Local.OptionsGeneralAllowdragging;
+			if (this.cbShowBottomToolbar != null)
+				this.cbShowBottomToolbar.Text = Root.Local.OptionsGeneralShowBottomToolbar;
 			this.lbNote.Text = Root.Local.OptionsGeneralNotePenwidth;
 
 			this.lbHkClear.Text = Root.Local.ButtonNameClear;
@@ -191,10 +223,12 @@ namespace gInk
 			this.lbHkSnapshot.Text = Root.Local.ButtonNameSnapshot;
 			this.lbHkUndo.Text = Root.Local.ButtonNameUndo;
 			this.lbGlobalHotkey.Text = Root.Local.OptionsHotkeysglobal;
+			if (this.lbHkRadial != null)
+				this.lbHkRadial.Text = Root.Local.OptionsHotkeysRadial;
 			this.cbAllowHotkeyInPointer.Text = Root.Local.OptionsHotkeysEnableinpointer;
 
-			this.comboCanvasCursor.Items[0] = Root.Local.OptionsGeneralCanvascursorArrow;
-			this.comboCanvasCursor.Items[1] = Root.Local.OptionsGeneralCanvascursorPentip;
+			this.comboCanvasCursor.Items[0] = Root.Local.OptionsGeneralCanvascursorCross;
+			this.comboCanvasCursor.Items[1] = Root.Local.OptionsGeneralCanvascursorArrow;
 
 
 			for (int p = 0; p < Root.MaxPenCount; p++)
@@ -230,11 +264,21 @@ namespace gInk
 			for (int p = 0; p < Root.MaxPenCount; p++)
 				if ((ComboBox)sender == comboPensAlpha[p])
 				{
-					byte o;
-					if (byte.TryParse(comboPensAlpha[p].Text, out o) && o >= 0 && o <= 255)
+					int o;
+					string text = comboPensAlpha[p].Text;
+					if (text == Root.Local.OptionsPensPencil) o = 255;
+					else if (text == Root.Local.OptionsPensHighlighter) o = 80;
+					else if (!int.TryParse(text, out o)) o = -1;
+
+					if (o >= 0 && o <= 255)
 					{
 						Root.PenAttr[p].Transparency = (byte)(255 - o);
 						comboPensAlpha[p].BackColor = Color.White;
+						if (Root.FormCollection != null && Root.CurrentPen == p)
+						{
+							Root.FormCollection.IC.DefaultDrawingAttributes.Transparency = Root.PenAttr[p].Transparency;
+							Root.FormCollection.UpdateCursor();
+						}
 					}
 					else
 					{
@@ -249,10 +293,22 @@ namespace gInk
 				if ((ComboBox)sender == comboPensWidth[p])
 				{
 					int o;
-					if (int.TryParse(comboPensWidth[p].Text, out o) && o >= 30 && o <= 3000)
+					string text = comboPensWidth[p].Text;
+					if (text == Root.Local.OptionsPensThin) o = 30;
+					else if (text == Root.Local.OptionsPensNormal) o = 80;
+					else if (text == Root.Local.OptionsPensThick) o = 500;
+					else if (!int.TryParse(text, out o)) o = -1;
+
+					if (o >= 30 && o <= 3000)
 					{
 						Root.PenAttr[p].Width = o;
 						comboPensWidth[p].BackColor = Color.White;
+						if (Root.FormCollection != null && Root.CurrentPen == p)
+						{
+							Root.FormCollection.IC.DefaultDrawingAttributes.Width = o;
+							Root.GlobalPenWidth = o;
+							Root.FormCollection.UpdateCursor();
+						}
 					}
 					else
 					{
@@ -271,6 +327,11 @@ namespace gInk
 					{
 						Root.PenAttr[p].Color = colorDialog1.Color;
 						pboxPens[p].BackColor = colorDialog1.Color;
+						if (Root.FormCollection != null && Root.CurrentPen == p)
+						{
+							Root.FormCollection.IC.DefaultDrawingAttributes.Color = Root.PenAttr[p].Color;
+							Root.FormCollection.UpdateCursor();
+						}
 					}
 				}
 		}
@@ -289,6 +350,11 @@ namespace gInk
 			Root.SaveOptions("pens.ini");
 			Root.SaveOptions("config.ini");
 			Root.SaveOptions("hotkeys.ini");
+
+			if (Root.FormCollection != null)
+			{
+				Root.FormCollection.SelectPen(Root.CurrentPen);
+			}
 
 			Root.FormOptions = null;
 		}
@@ -390,6 +456,10 @@ namespace gInk
 		private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			Root.CanvasCursor = comboCanvasCursor.SelectedIndex;
+			if (Root.FormCollection != null)
+			{
+				Root.FormCollection.UpdateCursor();
+			}
 		}
 
 		private void cbAllowDragging_CheckedChanged(object sender, EventArgs e)
