@@ -32,9 +32,16 @@ namespace gInk
 		// Palette
 		// --------------------------------------------------------------------
 
-		public static readonly Color ColorInactive = Color.FromArgb(216, 222, 230);
-		public static readonly Color ColorActive   = Color.FromArgb(82, 216, 177);
-		public static readonly Color ColorDanger   = Color.FromArgb(240, 105, 115);
+		public static Color ColorInactive = Color.FromArgb(216, 222, 230);
+		public static Color ColorActive   = Color.FromArgb(82, 216, 177);
+		public static Color ColorDanger   = Color.FromArgb(240, 105, 115);
+
+		public static void SetPalette(Color inactive, Color active, Color danger)
+		{
+			ColorInactive = inactive;
+			ColorActive = active;
+			ColorDanger = danger;
+		}
 
 		private const float IconGrid = 24f;
 		private const float StrokeWidth = 1.75f;
