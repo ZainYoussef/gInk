@@ -9,3 +9,4 @@ bin/crash.txt
 *.opensdf
 *.lnk
 *vshost.exe*
+*.sln.cache
