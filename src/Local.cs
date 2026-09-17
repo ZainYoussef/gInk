@@ -43,6 +43,7 @@ namespace gInk
 		public string OptionsGeneralWhitetrayicon = "Use white tray icon";
 		public string OptionsGeneralAllowdragging = "Allow dragging toolbar";
 		public string OptionsGeneralShowBottomToolbar = "Show bottom toolbar";
+		public string OptionsGeneralStyle = "Visual style";
 		public string OptionsGeneralNotePenwidth = "Note: pen width panel overides each individual pen width settings";
 
 		public string OptionsPensShow = "Show";

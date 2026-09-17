@@ -24,6 +24,8 @@ namespace gInk
 		HotkeyInputBox[] hiPens = new HotkeyInputBox[10];
 
 		CheckBox cbShowBottomToolbar;
+		Label lbStyle;
+		ComboBox comboStyle;
 		Label lbHkRadial;
 		HotkeyInputBox hiRadial;
 
@@ -61,18 +63,43 @@ namespace gInk
 			if (Root.AllowHotkeyInPointerMode)
 				cbAllowHotkeyInPointer.Checked = true;
 
+			comboCanvasCursor.SelectedIndex = Root.CanvasCursor;
+
+			tbSnapPath.Text = Root.SnapshotBasePath;
+
+			lbStyle = new Label();
+			lbStyle.AutoSize = true;
+			lbStyle.Location = new Point(lbSnapshotsavepath.Left, tbSnapPath.Bottom + 16);
+			lbStyle.Text = Root.Local.OptionsGeneralStyle;
+			tabPage1.Controls.Add(lbStyle);
+
+			comboStyle = new ComboBox();
+			comboStyle.DropDownStyle = ComboBoxStyle.DropDownList;
+			comboStyle.Location = new Point(comboCanvasCursor.Left, tbSnapPath.Bottom + 12);
+			comboStyle.Size = new Size(comboCanvasCursor.Width, comboCanvasCursor.Height);
+			for (int i = 0; i < UITheme.Themes.Length; i++)
+			{
+				comboStyle.Items.Add(UITheme.Themes[i].Name);
+			}
+			comboStyle.SelectedIndex = Root.CurrentThemeIndex;
+			comboStyle.SelectedIndexChanged += (s, ev) =>
+			{
+				Root.SetTheme(comboStyle.SelectedIndex);
+			};
+			tabPage1.Controls.Add(comboStyle);
+
+			cbWhiteIcon.Top = comboStyle.Bottom + 16;
+			cbAllowDragging.Top = cbWhiteIcon.Bottom + 10;
+
 			cbShowBottomToolbar = new CheckBox();
 			cbShowBottomToolbar.AutoSize = true;
 			cbShowBottomToolbar.Checked = Root.ShowBottomToolbar;
-			cbShowBottomToolbar.Location = new Point(cbAllowDragging.Left, cbAllowDragging.Bottom + 12);
+			cbShowBottomToolbar.Location = new Point(cbAllowDragging.Left, cbAllowDragging.Bottom + 10);
 			cbShowBottomToolbar.Text = Root.Local.OptionsGeneralShowBottomToolbar;
 			cbShowBottomToolbar.CheckedChanged += (s, ev) => Root.ShowBottomToolbar = cbShowBottomToolbar.Checked;
 			tabPage1.Controls.Add(cbShowBottomToolbar);
 
-			comboCanvasCursor.SelectedIndex = Root.CanvasCursor;
-
-			tbSnapPath.Text = Root.SnapshotBasePath;
-			
+			lbNote.Location = new Point(cbAllowDragging.Left, cbShowBottomToolbar.Bottom + 20);
 			lbNote.ForeColor = Color.Black;
 
 			lbcbPens = new Label();
@@ -210,8 +237,14 @@ namespace gInk
 			this.lbSnapshotsavepath.Text = Root.Local.OptionsGeneralSnapshotsavepath;
 			this.cbWhiteIcon.Text = Root.Local.OptionsGeneralWhitetrayicon;
 			this.cbAllowDragging.Text = Root.Local.OptionsGeneralAllowdragging;
+			if (this.lbStyle != null)
+				this.lbStyle.Text = Root.Local.OptionsGeneralStyle;
 			if (this.cbShowBottomToolbar != null)
+			{
 				this.cbShowBottomToolbar.Text = Root.Local.OptionsGeneralShowBottomToolbar;
+				this.lbNote.Top = this.cbShowBottomToolbar.Bottom + 18;
+				this.lbNote.Left = this.cbAllowDragging.Left;
+			}
 			this.lbNote.Text = Root.Local.OptionsGeneralNotePenwidth;
 
 			this.lbHkClear.Text = Root.Local.ButtonNameClear;

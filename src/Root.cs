@@ -154,6 +154,11 @@ namespace gInk
 		public bool AlwaysHideToolbar = false;
 		public bool ShowBottomToolbar = false;
 		public float ToolbarHeight = 0.06f;
+		public int CurrentThemeIndex = 0;
+		public UITheme CurrentTheme
+		{
+			get { return UITheme.Get(CurrentThemeIndex); }
+		}
 
 		// hotkey options
 		public Hotkey Hotkey_Global = new Hotkey();
@@ -309,6 +314,27 @@ namespace gInk
 			if (FormRadialMenu != null && !FormRadialMenu.IsDisposed)
 			{
 				FormRadialMenu.CloseMenu();
+			}
+		}
+
+		public void SetTheme(int themeIndex)
+		{
+			if (themeIndex < 0 || themeIndex >= UITheme.Themes.Length)
+				return;
+
+			CurrentThemeIndex = themeIndex;
+			UITheme theme = CurrentTheme;
+
+			ModernIcons.SetPalette(theme.IconInactive, theme.IconActive, theme.IconDanger);
+
+			if (FormCollection != null && !FormCollection.IsDisposed)
+			{
+				FormCollection.ApplyTheme(theme);
+			}
+
+			if (FormRadialMenu != null && !FormRadialMenu.IsDisposed)
+			{
+				FormRadialMenu.ApplyTheme(theme);
 			}
 		}
 
@@ -814,6 +840,14 @@ namespace gInk
 							else
 								ShowBottomToolbar = false;
 							break;
+						case "UI_STYLE":
+						case "UI_THEME":
+							if (int.TryParse(sPara, out tempi) && tempi >= 0 && tempi < UITheme.Themes.Length)
+							{
+								CurrentThemeIndex = tempi;
+								ModernIcons.SetPalette(CurrentTheme.IconInactive, CurrentTheme.IconActive, CurrentTheme.IconDanger);
+							}
+							break;
 						case "UNDO_ICON":
 							if (sPara.ToUpper() == "FALSE" || sPara == "0" || sPara.ToUpper() == "OFF")
 								UndoEnabled = false;
@@ -1031,6 +1065,10 @@ namespace gInk
 								sPara = "True";
 							else
 								sPara = "False";
+							break;
+						case "UI_STYLE":
+						case "UI_THEME":
+							sPara = CurrentThemeIndex.ToString();
 							break;
 						case "UNDO_ICON":
 							if (UndoEnabled)
